@@ -1,22 +1,28 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 export default function OrderSearch({ setOrder }) {
   const [orderId, setOrderId] = useState("");
   const [phone, setPhone] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
+  const handleSearch = async (event) => {
+    event.preventDefault();
 
     setError("");
 
-    if (!orderId.trim() || !phone.trim()) {
-      setError("Please enter both Order ID and Phone Number.");
+    const cleanOrderId = orderId.trim();
+    const cleanPhone = phone.trim();
+
+    if (!cleanOrderId || !cleanPhone) {
+      setError(
+        "Please enter both your Order ID and phone number."
+      );
       return;
     }
 
-    if (phone.length !== 10) {
+    if (!/^\d{10}$/.test(cleanPhone)) {
       setError("Please enter a valid 10-digit phone number.");
       return;
     }
@@ -24,35 +30,53 @@ export default function OrderSearch({ setOrder }) {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/orders/track",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderId: orderId.trim(),
-            phone: phone.trim(),
-          }),
-        }
-      );
+      /*
+       * IMPORTANT:
+       * We use a relative URL.
+       *
+       * This means:
+       *
+       * https://yourwebsite.vercel.app
+       *              ↓
+       * /api/orders/track
+       *
+       * Everything is served from ONE website.
+       */
+
+      const response = await fetch("/api/orders/track", {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          orderId: cleanOrderId,
+          phone: cleanPhone,
+        }),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Order not found.");
+        throw new Error(
+          data.message || "Order could not be found."
+        );
       }
 
-      // Send complete order information to App.jsx
-      setOrder(data.order || data);
+      if (!data.order) {
+        throw new Error(
+          "Order information was not returned."
+        );
+      }
 
-    } catch (err) {
-      console.error("Order search error:", err);
+      setOrder(data.order);
+    } catch (error) {
+      console.error("Order search error:", error);
 
       setError(
-        err.message ||
-          "Unable to connect to the backend. Make sure server.js is running on port 5000."
+        error.message ||
+          "Unable to connect to the order tracking service."
       );
     } finally {
       setLoading(false);
@@ -63,128 +87,127 @@ export default function OrderSearch({ setOrder }) {
     <div style={styles.page}>
       <div style={styles.container}>
 
-        {/* Heading */}
         <div style={styles.header}>
-          <h1 style={styles.title}>Where is my order?</h1>
+          <div style={styles.icon}>📦</div>
+
+          <h1 style={styles.title}>
+            Track Your Order
+          </h1>
 
           <p style={styles.subtitle}>
-            Enter your order details to track your delivery.
+            Enter your Order ID and registered phone
+            number to view your complete order details.
           </p>
         </div>
 
-        {/* Search Form */}
-        <form onSubmit={handleSearch}>
+        <form
+          onSubmit={handleSearch}
+          style={styles.form}
+        >
+          <div style={styles.field}>
+            <label style={styles.label}>
+              Order ID
+            </label>
 
-          <div style={styles.formGrid}>
-
-            {/* Order ID */}
-            <div style={styles.field}>
-              <label style={styles.label}>
-                Order ID
-              </label>
-
-              <input
-                type="text"
-                value={orderId}
-                onChange={(e) => setOrderId(e.target.value)}
-                placeholder="e.g. ORD-20260808001"
-                style={styles.input}
-              />
-            </div>
-
-            {/* Phone */}
-            <div style={styles.field}>
-              <label style={styles.label}>
-                Phone Number
-              </label>
-
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "");
-                  setPhone(value.slice(0, 10));
-                }}
-                placeholder="Enter 10-digit phone number"
-                style={styles.input}
-              />
-            </div>
-
-            {/* Button */}
-            <button
-              type="submit"
+            <input
+              type="text"
+              value={orderId}
+              onChange={(e) =>
+                setOrderId(e.target.value)
+              }
+              placeholder="e.g. ORD-10001"
+              style={styles.input}
               disabled={loading}
-              style={{
-                ...styles.button,
-                opacity: loading ? 0.7 : 1,
-                cursor: loading ? "not-allowed" : "pointer",
-              }}
-            >
-              {loading ? "Searching..." : "Track Order"}
-            </button>
-
+            />
           </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>
+              Phone Number
+            </label>
+
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => {
+                const value =
+                  e.target.value.replace(/\D/g, "");
+
+                setPhone(value.slice(0, 10));
+              }}
+              placeholder="10-digit phone number"
+              style={styles.input}
+              disabled={loading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              ...styles.button,
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {loading
+              ? "Searching..."
+              : "Track Order →"}
+          </button>
         </form>
 
-        {/* Error */}
         {error && (
           <div style={styles.error}>
-            <strong>Unable to find order</strong>
-            <p style={{ margin: "6px 0 0" }}>{error}</p>
+            <div style={styles.errorTitle}>
+              ⚠️ Unable to find order
+            </div>
+
+            <div>{error}</div>
           </div>
         )}
 
-        {/* Information */}
-        <div style={styles.infoSection}>
+        <div style={styles.cards}>
 
-          <div style={styles.infoCard}>
-            <div style={styles.icon}>🔒</div>
-
-            <div>
-              <h3 style={styles.infoTitle}>
-                Secure Tracking
-              </h3>
-
-              <p style={styles.infoText}>
-                Your order can only be accessed using your
-                Order ID and registered phone number.
-              </p>
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>
+              🔒
             </div>
+
+            <h3>Secure</h3>
+
+            <p>
+              Your order information is protected
+              using your Order ID and registered
+              phone number.
+            </p>
           </div>
 
-          <div style={styles.infoCard}>
-            <div style={styles.icon}>📦</div>
-
-            <div>
-              <h3 style={styles.infoTitle}>
-                Complete Order Details
-              </h3>
-
-              <p style={styles.infoText}>
-                View your order status, items, quantities,
-                payment details, delivery address and tracking
-                timeline.
-              </p>
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>
+              📍
             </div>
+
+            <h3>Real-Time Tracking</h3>
+
+            <p>
+              Check your current order status and
+              shipment progress.
+            </p>
           </div>
 
-          <div style={styles.infoCard}>
-            <div style={styles.icon}>🚚</div>
-
-            <div>
-              <h3 style={styles.infoTitle}>
-                Real-Time Tracking
-              </h3>
-
-              <p style={styles.infoText}>
-                Follow your order from placement to processing,
-                dispatch, delivery and completion.
-              </p>
+          <div style={styles.card}>
+            <div style={styles.cardIcon}>
+              📋
             </div>
+
+            <h3>Complete Details</h3>
+
+            <p>
+              View products, payment, delivery
+              address and tracking history.
+            </p>
           </div>
 
         </div>
-
       </div>
     </div>
   );
@@ -192,37 +215,53 @@ export default function OrderSearch({ setOrder }) {
 
 const styles = {
   page: {
-    minHeight: "calc(100vh - 120px)",
+    minHeight: "calc(100vh - 150px)",
     background: "#f8fafc",
-    padding: "70px 40px",
+    padding: "55px 20px",
   },
 
   container: {
-    maxWidth: "1200px",
+    maxWidth: "1100px",
     margin: "0 auto",
   },
 
   header: {
     textAlign: "center",
-    marginBottom: "55px",
+    marginBottom: "40px",
+  },
+
+  icon: {
+    fontSize: "45px",
+    marginBottom: "10px",
   },
 
   title: {
-    fontSize: "48px",
-    fontWeight: "700",
-    margin: "0 0 15px",
+    margin: 0,
+    fontSize: "42px",
+    fontWeight: "800",
     color: "#111827",
   },
 
   subtitle: {
-    fontSize: "20px",
+    maxWidth: "650px",
+    margin: "14px auto 0",
     color: "#64748b",
-    margin: 0,
+    fontSize: "17px",
+    lineHeight: "1.6",
   },
 
-  formGrid: {
+  form: {
+    background: "#ffffff",
+    padding: "30px",
+    borderRadius: "18px",
+    border: "1px solid #e5e7eb",
+    boxShadow:
+      "0 8px 25px rgba(0,0,0,0.05)",
+
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 0.9fr",
+    gridTemplateColumns:
+      "1fr 1fr auto",
+
     gap: "20px",
     alignItems: "end",
   },
@@ -233,75 +272,68 @@ const styles = {
   },
 
   label: {
-    fontSize: "17px",
-    fontWeight: "600",
-    marginBottom: "10px",
-    color: "#111827",
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: "9px",
   },
 
   input: {
     width: "100%",
+    height: "56px",
     boxSizing: "border-box",
-    height: "66px",
-    padding: "0 20px",
-    fontSize: "18px",
-    border: "1px solid #1f2937",
-    borderRadius: "14px",
+    padding: "0 16px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "10px",
+    fontSize: "16px",
     outline: "none",
-    background: "#ffffff",
   },
 
   button: {
-    height: "66px",
+    height: "56px",
+    padding: "0 28px",
     border: "none",
-    borderRadius: "14px",
+    borderRadius: "10px",
     background: "#2563eb",
-    color: "white",
-    fontSize: "19px",
+    color: "#ffffff",
+    fontSize: "16px",
     fontWeight: "700",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 
   error: {
-    marginTop: "25px",
-    padding: "18px 22px",
+    marginTop: "20px",
+    padding: "18px",
     borderRadius: "12px",
     background: "#fef2f2",
     border: "1px solid #fecaca",
-    color: "#dc2626",
-    fontSize: "16px",
-  },
-
-  infoSection: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "20px",
-    marginTop: "55px",
-  },
-
-  infoCard: {
-    display: "flex",
-    gap: "16px",
-    padding: "25px",
-    background: "#ffffff",
-    borderRadius: "16px",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 4px 15px rgba(0,0,0,0.04)",
-  },
-
-  icon: {
-    fontSize: "30px",
-  },
-
-  infoTitle: {
-    margin: "0 0 8px",
-    fontSize: "18px",
-    color: "#111827",
-  },
-
-  infoText: {
-    margin: 0,
-    color: "#64748b",
+    color: "#b91c1c",
     lineHeight: "1.6",
-    fontSize: "14px",
+  },
+
+  errorTitle: {
+    fontWeight: "800",
+    marginBottom: "5px",
+  },
+
+  cards: {
+    display: "grid",
+    gridTemplateColumns:
+      "repeat(3, 1fr)",
+    gap: "20px",
+    marginTop: "40px",
+  },
+
+  card: {
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "15px",
+    padding: "25px",
+  },
+
+  cardIcon: {
+    fontSize: "30px",
+    marginBottom: "8px",
   },
 };
